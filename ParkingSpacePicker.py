@@ -5,26 +5,30 @@ img = cv2.imread("image.png")
 
 width, height = 107, 48
 
-parkingPositionList = []
+
+try:
+    with open("CarParkingPosition", "rb") as file:
+        parkingPositionList = pickle.load(file)
+except:
+    parkingPositionList = []
 
 
 def mouseClick(events, x, y, flags, params):
-    global deleteMode
 
     if events == cv2.EVENT_RBUTTONDOWN:
 
         for i, position in enumerate(parkingPositionList):
             x1, y1 = position
 
-            if (
-                x1 - width // 2 < x < x1 + width // 2
-                and y1 - height // 2 < y < y1 + height // 2
-            ):
+            if x1 < x < x1 + width and y1 < y < y1 + height:
                 parkingPositionList.pop(i)
                 break
 
     if events == cv2.EVENT_LBUTTONDOWN:
         parkingPositionList.append((x, y))
+
+    with open("CarParkingPosition", "wb") as file:
+        pickle.dump(parkingPositionList, file)
 
 
 cv2.namedWindow("image")
@@ -38,8 +42,8 @@ while True:
     for position in parkingPositionList:
         cv2.rectangle(
             display_img,
-            (position[0] - (width // 2), position[1] - (height // 2)),
-            (position[0] + (width // 2), position[1] + (height // 2)),
+            position,
+            (position[0] + (width), position[1] + height),
             (255, 0, 255),
             2,
         )
