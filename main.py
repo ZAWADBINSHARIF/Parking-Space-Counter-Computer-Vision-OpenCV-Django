@@ -1,43 +1,61 @@
+import os
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+
+import django
+
+django.setup()
+
 import cv2
 import cvzone
-import pickle
 import numpy as np
+
+from parking import services
+from parking.models import Slot
 
 video = cv2.VideoCapture("carPark.mp4")
 
 width, height = 107, 48
+freePixelThreshold = 1000
 
-try:
-    with open("CarParkingPosition", "rb") as file:
-        parkingPositionList = pickle.load(file)
-except:
-    parkingPositionList = []
+slots = services.get_all_slots()
 
 
-def checkParkingSpace(ProcessedImage):
+def checkParkingSpace(processedImage):
 
     spaceCounter = 0
 
-    for position in parkingPositionList:
-        x, y = position
+    for slot in slots:
+        x, y = (int(v) for v in slot.coordinates[0])
 
-        cropedImage = ProcessedImage[y : y + height - 5, x : x + width]
+        cropedImage = processedImage[y : y + height - 5, x : x + width]
         count = cv2.countNonZero(cropedImage)
-        cvzone.putTextRect(img, str(count), (x, y + height), 1, 2, offset=0)
+        # cvzone.putTextRect(img, str(count), (x, y + height), 1, 2, offset=0)
 
-        if count < 1000:
+        cvzone.putTextRect(img, str(slot.name), (x, y + height), 1, 2, offset=0)
+
+        if count < freePixelThreshold:
+            status = Slot.Status.OPEN
             color = (0, 255, 0)  # * BGR
             thickness = 5
             spaceCounter += 1
         else:
+            status = Slot.Status.BOOKED
             color = (0, 0, 255)
             thickness = 2
 
-        cv2.rectangle(img, position, (x + (width), y + height), color, thickness)
+        # As soon as a slot is blocked or opened, update the database
+        if slot.status != status:
+            services.update_slot_status(slot.id, status)
+            slot.status = status
+
+            print(slot.id, slot.name, slot.status)
+
+        cv2.rectangle(img, (x, y), (x + width, y + height), color, thickness)
 
     cvzone.putTextRect(
         img,
-        f"free: {str(spaceCounter)}/{len(parkingPositionList)}",
+        f"free: {str(spaceCounter)}/{len(slots)}",
         (100, 50),
         3,
         5,
@@ -70,9 +88,12 @@ while True:
 
     checkParkingSpace(imageDilate)
 
-    cv2.imshow("Video Blur", imgBlur)
-    cv2.imshow("Video Threshold", imgThreshold)
-    cv2.imshow("Video Threshold Inverse", imgThresholdInv)
-    cv2.imshow("Video Dilate", imageDilate)
+    # cv2.imshow("Video Blur", imgBlur)
+    # cv2.imshow("Video Threshold", imgThreshold)
+    # cv2.imshow("Video Threshold Inverse", imgThresholdInv)
+    # cv2.imshow("Video Dilate", imageDilate)
     cv2.imshow("Video", img)
-    cv2.waitKey(10)
+    if cv2.waitKey(10) & 0xFF == ord("q"):
+        break
+
+cv2.destroyAllWindows()
