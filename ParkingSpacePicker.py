@@ -12,6 +12,8 @@ try:
 except:
     parkingPositionList = []
 
+print(parkingPositionList)
+
 
 def mouseClick(events, x, y, flags, params):
 
